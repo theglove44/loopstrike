@@ -1,0 +1,12 @@
+{
+  "name": "Loopstrike",
+  "short_name": "Loopstrike",
+  "description": "Die. Learn. Loop. An offline sci-fi shooter.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [{ "src": "icon.png", "sizes": "180x180", "type": "image/png" }]
+}
