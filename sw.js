@@ -1,6 +1,6 @@
 // Keeps a copy of the game on the device so it opens with no signal.
 // Bump CACHE whenever index.html changes, so phones pick up the new version.
-const CACHE = 'loopstrike-v1';
+const CACHE = 'loopstrike-v2';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon.png'];
 
 self.addEventListener('install', e => {

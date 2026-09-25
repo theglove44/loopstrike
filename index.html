@@ -14,7 +14,7 @@
 <style>
 :root{--c:#4ff0ff;--g:#39ff88;--r:#ff4d6d;--y:#ffd24d;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
 html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
-body{position:fixed;inset:0;color:#dff8ff;font-family:-apple-system,system-ui,sans-serif}
+body{position:fixed;top:0;left:0;right:0;height:100%;color:#dff8ff;font-family:-apple-system,system-ui,sans-serif}
 canvas{position:absolute;left:0;top:0;touch-action:none}
 #safe{position:absolute;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 #ov{position:absolute;inset:0;display:flex;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 16px);box-sizing:border-box;background:radial-gradient(ellipse at center,rgba(0,10,20,.55),rgba(0,0,0,.8))}
@@ -48,6 +48,7 @@ h2{font:800 26px var(--mono);letter-spacing:.1em;margin:4px 0 16px;color:#effeff
 .card:active{background:rgba(57,255,136,.3)}
 .card b{display:block;font-size:17px;letter-spacing:.08em;margin-bottom:4px;color:#b9ffd6}
 .card small{display:block;font-size:13px;color:#cfe;line-height:1.35}
+.card em{display:block;font-style:normal;font-size:14px;font-weight:800;color:#ffd24d;margin-top:7px}
 .card i{display:block;font-style:normal;font-size:11px;letter-spacing:.15em;color:#6fcf95;margin-top:6px}
 .earn{font:800 20px var(--mono);color:var(--g);margin:6px 0 4px;text-shadow:0 0 12px rgba(57,255,136,.6)}
 .newbest{font:800 14px var(--mono);letter-spacing:.25em;color:var(--y);margin:-6px 0 14px;animation:pulse 1s infinite alternate}
@@ -65,6 +66,9 @@ h2{font:800 26px var(--mono);letter-spacing:.1em;margin:4px 0 16px;color:#effeff
 .pips i.on{background:var(--c);box-shadow:0 0 6px var(--c)}
 .buy{min-width:84px;padding:10px 8px;border:1px solid var(--g);background:rgba(0,50,25,.6);color:#d9ffe8;font:800 13px var(--mono);border-radius:5px}
 .buy:disabled{border-color:#335;color:#567;background:transparent}
+.loadout{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;text-align:left;margin:0 0 12px;font:12px var(--mono)}
+.loadout div{display:flex;justify-content:space-between;border-bottom:1px solid rgba(79,240,255,.12);padding:4px 0}
+.loadout span{color:#8fb8c8}.loadout b{color:#effeff}
 .how{text-align:left;font-size:15px;line-height:1.5;color:#cfeaf2;padding-left:20px}
 .how li{margin-bottom:9px}
 .how b{color:var(--c)}
@@ -83,6 +87,7 @@ const TAU = Math.PI * 2, MONO = 'ui-monospace,"SF Mono",Menlo,monospace';
 const rand = (a = 1, b) => b === undefined ? Math.random() * a : a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const fmt = n => Math.floor(n).toLocaleString('en-GB');
+const pct = m => Math.round(m * 100) + '%';
 
 let W = 0, H = 0, DPR = 1, FW = 0, FX = 0, SAFE = { t: 0, b: 0, l: 0, r: 0 };
 let pauseBtn = {}, btBtn = {};
@@ -114,16 +119,17 @@ const lvl = id => save.up[id] || 0;
 const cost = u => Math.round(u.base * Math.pow(1.55, lvl(u.id)));
 
 const PERKS = [
-  { id: 'streams', name: 'Split Beam', desc: '+1 laser stream', max: 4, apply: p => p.streams++ },
-  { id: 'power', name: 'Overcharge', desc: '+25% damage', max: 99, apply: p => p.dmg *= 1.25 },
-  { id: 'rapid', name: 'Rapid Cycle', desc: '+18% fire rate', max: 99, apply: p => p.rate *= 1.18 },
-  { id: 'repair', name: 'Field Repair', desc: 'Restore 2 hull', max: 99, apply: p => p.hp = Math.min(p.maxHp, p.hp + 2), cond: p => p.hp < p.maxHp },
-  { id: 'plating', name: 'Ablative Armour', desc: '+1 max hull and repair 1', max: 4, apply: p => { p.maxHp++; p.hp++; } },
-  { id: 'missiles', name: 'Seeker Pods', desc: 'Fire homing missiles (+1 per level)', max: 4, apply: p => p.missiles++ },
-  { id: 'wing', name: 'Wingman Drone', desc: 'An escort ship that fires with you', max: 2, apply: p => p.wings++ },
-  { id: 'pierce', name: 'Phase Rounds', desc: 'Shots pierce +1 enemy', max: 3, apply: p => p.pierce++ },
-  { id: 'tcell', name: 'Temporal Cell', desc: 'Bullet time charges 40% faster', max: 3, apply: p => p.btGain *= 1.4 },
-  { id: 'greed', name: 'Data Siphon', desc: '+30% loop data from kills', max: 3, apply: p => p.greed *= 1.3 },
+  // tag: short label for the in-game loadout strip. stat: "now → after" line shown on the upgrade card.
+  { id: 'streams', tag: 'BEAM', name: 'Split Beam', desc: 'Fire an extra laser in a wider fan', max: 4, apply: p => p.streams++, stat: p => `Lasers ${p.streams} → ${p.streams + 1}` },
+  { id: 'power', tag: 'DMG', name: 'Overcharge', desc: '+25% damage. Shots grow bigger and change colour', max: 99, apply: p => p.dmg *= 1.25, stat: p => `Damage ${pct(p.dmg)} → ${pct(p.dmg * 1.25)}` },
+  { id: 'rapid', tag: 'RATE', name: 'Rapid Cycle', desc: '+18% fire rate', max: 99, apply: p => p.rate *= 1.18, stat: p => `Shots/sec ${p.rate.toFixed(1)} → ${(p.rate * 1.18).toFixed(1)}` },
+  { id: 'repair', name: 'Field Repair', desc: 'Restore 2 hull', max: 99, apply: p => p.hp = Math.min(p.maxHp, p.hp + 2), cond: p => p.hp < p.maxHp, stat: p => `Hull ${p.hp} → ${Math.min(p.maxHp, p.hp + 2)}` },
+  { id: 'plating', tag: 'ARMR', name: 'Ablative Armour', desc: '+1 max hull and repair 1', max: 4, apply: p => { p.maxHp++; p.hp++; }, stat: p => `Max hull ${p.maxHp} → ${p.maxHp + 1}` },
+  { id: 'missiles', tag: 'MSL', name: 'Seeker Pods', desc: 'Homing missiles launch automatically', max: 4, apply: p => p.missiles++, stat: p => `Missiles per volley ${p.missiles} → ${p.missiles + 1}` },
+  { id: 'wing', tag: 'WING', name: 'Wingman Drone', desc: 'An escort ship that flies and fires beside you', max: 2, apply: p => p.wings++, stat: p => `Escorts ${p.wings} → ${p.wings + 1}` },
+  { id: 'pierce', tag: 'PHASE', name: 'Phase Rounds', desc: 'Shots pass through enemies. Violet trails show it', max: 3, apply: p => p.pierce++, stat: p => `Enemies per shot ${p.pierce + 1} → ${p.pierce + 2}` },
+  { id: 'tcell', tag: 'TIME', name: 'Temporal Cell', desc: 'Bullet time charges 40% faster', max: 3, apply: p => p.btGain *= 1.4, stat: p => `Charge speed ${pct(p.btGain)} → ${pct(p.btGain * 1.4)}` },
+  { id: 'greed', tag: 'DATA', name: 'Data Siphon', desc: '+30% loop data from kills', max: 3, apply: p => p.greed *= 1.3, stat: p => `Data per kill ${pct(p.greed)} → ${pct(p.greed * 1.3)}` },
 ];
 
 const RANKS = [[0, 'Cadet'], [3, 'Ensign'], [6, 'Lieutenant'], [11, 'Commander'], [16, 'Captain'], [21, 'Commodore'], [26, 'Admiral'], [36, 'The One']];
@@ -209,10 +215,12 @@ function buildSprites() {
     glowPath(x, '#5cff5c', 10, 'rgba(0,25,5,.95)', poly([[0, -17], [13, 0], [0, 17], [-13, 0]]));
     x.fillStyle = '#000'; x.fillRect(-9, -4, 18, 5); x.fillStyle = '#5cff5c'; x.fillRect(-9, -4, 18, 1);
   });
-  SPR.pb = sprite(5, 16, 6, x => {
-    x.shadowColor = '#4ff0ff'; x.shadowBlur = 6; x.fillStyle = '#d8feff';
+  // One laser bolt per Overcharge tier: cyan, green, gold, magenta.
+  SPR.pb = ['#4ff0ff', '#6dff9e', '#ffd24d', '#ff5cf0'].map(col => sprite(5, 16, 7, x => {
+    x.shadowColor = col; x.shadowBlur = 7; x.fillStyle = col;
     x.beginPath(); x.moveTo(0, -8); x.lineTo(2.5, -5); x.lineTo(2.5, 8); x.lineTo(-2.5, 8); x.lineTo(-2.5, -5); x.closePath(); x.fill();
-  });
+    x.shadowBlur = 0; x.fillStyle = 'rgba(255,255,255,.85)'; x.fillRect(-1, -5, 2, 12);
+  }));
   const orb = (r, col) => sprite(r * 2, r * 2, 8, x => {
     x.shadowColor = col; x.shadowBlur = 8; x.fillStyle = col; x.beginPath(); x.arc(0, 0, r, 0, TAU); x.fill();
     x.shadowBlur = 0; x.fillStyle = '#fff'; x.beginPath(); x.arc(0, 0, r * 0.45, 0, TAU); x.fill();
@@ -470,11 +478,13 @@ function mineBurst(e) {
 function wingPos(i) { const p = G.p, side = i === 0 ? -1 : 1; return [p.x + side * 34, p.y + 14 + Math.sin(clock * 3 + i) * 3]; }
 function firePlayer() {
   const g = G, p = g.p, n = p.streams;
+  // Visible upgrade feedback: Overcharge picks set bolt colour/size, Split Beam fans the lasers out.
+  const oc = p.perks.power || 0, tier = Math.min(3, oc), sc = 1 + Math.min(oc, 5) * 0.18;
   for (let i = 0; i < n; i++) {
-    const off = i - (n - 1) / 2, a = -Math.PI / 2 + off * 0.07;
-    g.pb.push({ x: p.x + off * 6, y: p.y - 16, vx: Math.cos(a) * 720, vy: Math.sin(a) * 720, dmg: p.dmg, pierce: p.pierce });
+    const off = i - (n - 1) / 2, a = -Math.PI / 2 + off * 0.11;
+    g.pb.push({ x: p.x + off * 9, y: p.y - 16, vx: Math.cos(a) * 720, vy: Math.sin(a) * 720, dmg: p.dmg, pierce: p.pierce, tier, sc, rot: off * 0.11 });
   }
-  for (let i = 0; i < p.wings; i++) { const [wx, wy] = wingPos(i); g.pb.push({ x: wx, y: wy - 8, vx: 0, vy: -720, dmg: p.dmg * 0.6, pierce: 0 }); }
+  for (let i = 0; i < p.wings; i++) { const [wx, wy] = wingPos(i); g.pb.push({ x: wx, y: wy - 8, vx: 0, vy: -720, dmg: p.dmg * 0.6, pierce: 0, tier: 0, sc: 0.8, rot: 0 }); }
   sfx('shoot');
 }
 
@@ -828,7 +838,15 @@ function drawBoss() {
   if (b.flash > 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6; draws(); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; }
 }
 function drawShots() {
-  for (const b of G.pb) { if (b.missile) spr(SPR.missile, b.x, b.y, Math.atan2(b.vy, b.vx) + Math.PI / 2); else spr(SPR.pb, b.x, b.y); }
+  for (const b of G.pb) {
+    if (b.missile) { spr(SPR.missile, b.x, b.y, Math.atan2(b.vy, b.vx) + Math.PI / 2); continue; }
+    if (b.pierce > 0) {
+      // Phase Rounds leave a violet trail.
+      ctx.strokeStyle = 'rgba(190,120,255,.55)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - b.vx * 0.04, b.y - b.vy * 0.04); ctx.stroke();
+    }
+    spr(SPR.pb[b.tier], b.x, b.y, b.rot, b.sc);
+  }
   for (const b of G.eb) spr(b.big ? SPR.ebBig : SPR.eb, b.x, b.y);
 }
 function drawPlayer() {
@@ -892,6 +910,19 @@ function drawHUD() {
     ctx.textAlign = 'center'; ctx.font = `800 11px ${MONO}`; ctx.fillStyle = '#ff8a9a'; ctx.fillText(B.name, W / 2, by - 15);
     ctx.fillStyle = 'rgba(255,60,80,.18)'; ctx.fillRect(bx, by, bw, 7);
     ctx.fillStyle = '#ff4d6d'; ctx.fillRect(bx, by, bw * Math.max(0, B.hp / B.maxHp), 7);
+  }
+  // Loadout strip (bottom left): every run upgrade you hold, with its level.
+  const owned = PERKS.filter(k => k.tag && p.perks[k.id]);
+  if (owned.length) {
+    ctx.font = `800 10px ${MONO}`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const maxX = btBtn.x - btBtn.r - 12; let cx = L, cy = H - SAFE.b - 22;
+    for (const k of owned.slice().reverse()) {
+      const label = k.tag + ' ' + p.perks[k.id], w = ctx.measureText(label).width + 12;
+      if (cx + w > maxX) { cx = L; cy -= 22; }
+      ctx.fillStyle = 'rgba(0,40,25,.7)'; ctx.fillRect(cx, cy - 9, w, 18);
+      ctx.strokeStyle = 'rgba(57,255,136,.55)'; ctx.lineWidth = 1; ctx.strokeRect(cx + 0.5, cy - 8.5, w - 1, 17);
+      ctx.fillStyle = '#b9ffd6'; ctx.fillText(label, cx + 6, cy + 1); cx += w + 6;
+    }
   }
   // Bullet-time button.
   const b = btBtn, ch = p.btCharge, active = g.bt > 0, ready = ch >= 1 && !active;
@@ -969,18 +1000,26 @@ function openPerks() {
   if (!choices.length) { startWarp(); return; }
   g.choices = choices; mode = 'perk';
   showOverlay(`<div class="panel center"><div class="kicker green">SECTOR ${g.sector} CLEAR</div><h2>CHOOSE AN UPGRADE</h2>
-    ${choices.map((c, i) => { const n = p.perks[c.id] || 0; return `<button class="card" data-act="perk:${i}"><b>${c.name}</b><small>${c.desc}</small><i>${c.max < 99 ? `LEVEL ${n} → ${n + 1} OF ${c.max}` : n ? `TAKEN ${n}×` : 'NEW'}</i></button>`; }).join('')}
-    <div class="foot">RUN UPGRADES LAST UNTIL YOU DIE</div></div>`);
+    ${choices.map((c, i) => { const n = p.perks[c.id] || 0; return `<button class="card" data-act="perk:${i}"><b>${c.name}</b><small>${c.desc}</small><em>${c.stat(p)}</em><i>${c.max < 99 ? `LEVEL ${n} → ${n + 1} OF ${c.max}` : n ? `TAKEN ${n}×` : 'NEW'}</i></button>`; }).join('')}
+    <div class="foot">ALL UPGRADES WORK AUTOMATICALLY · ONLY BULLET TIME NEEDS A TAP<br>THEY LAST UNTIL YOU DIE</div></div>`);
 }
 function startWarp() {
   hideOverlay(); mode = 'warp'; G.warp = 1.8; G.eb = []; sfx('warp');
   banner('FTL JUMP', 'SPOOLING TO SECTOR ' + (G.sector + 1), '#4ff0ff', 1.8);
+}
+function loadoutHtml(p) {
+  const rows = [
+    ['Lasers', p.streams], ['Damage', pct(p.dmg)], ['Shots/sec', p.rate.toFixed(1)], ['Hull', p.hp + ' / ' + p.maxHp],
+    ['Missiles', p.missiles], ['Escorts', p.wings], ['Enemies per shot', p.pierce + 1], ['Bullet time', p.btDur.toFixed(1) + 's'],
+  ];
+  return `<div class="lbl">YOUR SHIP</div><div class="loadout">${rows.map(([k, v]) => `<div><span>${k}</span><b>${v}</b></div>`).join('')}</div>`;
 }
 function pauseGame() {
   if (mode !== 'play' && mode !== 'warp') return;
   G.resumeMode = mode; mode = 'paused';
   showOverlay(`<div class="panel center"><h2>PAUSED</h2>
     <div class="stats"><div><small>SECTOR</small><b>${G.sector}</b></div><div><small>SCORE</small><b>${fmt(G.score)}</b></div><div><small>DATA</small><b style="color:#39ffb0">◆ ${fmt(G.dataRun)}</b></div></div>
+    ${loadoutHtml(G.p)}
     <button class="btn primary" data-act="resume">RESUME</button>${toggles()}
     <button class="btn danger" data-act="abort">ABORT LOOP</button><div class="foot">ABORTING STILL BANKS YOUR LOOP DATA</div></div>`);
 }
@@ -1014,7 +1053,14 @@ ov.addEventListener('click', e => {
       if (lvl(u.id) < u.max && save.data >= c) { save.data -= c; save.up[u.id] = lvl(u.id) + 1; persist(); sfx('power'); }
       showHangar(); break;
     }
-    case 'perk': { const k = G.choices[+arg]; if (k) { applyPerk(G.p, k); sfx('power'); startWarp(); } break; }
+    case 'perk': {
+      const k = G.choices[+arg];
+      if (k) {
+        applyPerk(G.p, k); sfx('power'); startWarp();
+        G.texts.push({ x: G.p.x, y: G.p.y - 50, txt: k.name.toUpperCase() + ' ONLINE', life: 2.2, col: '#39ff88', size: 15 });
+      }
+      break;
+    }
     case 'resume': hideOverlay(); mode = G.resumeMode || 'play'; break;
     case 'abort': hideOverlay(); gameOver(); break;
     case 'snd': save.muted = !save.muted; persist(); if (master) master.gain.value = save.muted ? 0 : 0.8; b.textContent = 'SFX: ' + (save.muted ? 'OFF' : 'ON'); break;
@@ -1057,6 +1103,11 @@ document.addEventListener('visibilitychange', () => {
 // ---------- layout ----------
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  // iOS home-screen apps can report a short height, leaving a dead strip at the bottom.
+  // In portrait standalone mode the app owns the whole screen, so use the screen size.
+  const standalone = navigator.standalone || matchMedia('(display-mode: standalone)').matches;
+  if (standalone && W < H && screen.height > H) H = screen.height;
+  document.body.style.height = H + 'px';
   cv.width = W * DPR | 0; cv.height = H * DPR | 0; cv.style.width = W + 'px'; cv.style.height = H + 'px';
   const s = getComputedStyle(document.getElementById('safe'));
   SAFE = { t: parseFloat(s.paddingTop) || 0, b: parseFloat(s.paddingBottom) || 0, l: parseFloat(s.paddingLeft) || 0, r: parseFloat(s.paddingRight) || 0 };
@@ -1067,6 +1118,8 @@ function resize() {
   if (G) { G.p.x = clamp(G.p.x, 14, FW - 14); G.p.y = clamp(G.p.y, SAFE.t + 70, H - SAFE.b - 24); }
 }
 addEventListener('resize', resize);
+addEventListener('orientationchange', () => setTimeout(resize, 300));
+addEventListener('load', () => setTimeout(resize, 300));
 
 // Offline support: the service worker keeps a copy of the game on the device.
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
